@@ -6,6 +6,7 @@ import (
 	template2 "github.com/GoAdminGroup/go-admin/template"
 	"github.com/GoAdminGroup/monitor/dashboard"
 	"github.com/GoAdminGroup/monitor/dashboard/param"
+	template3 "github.com/GoAdminGroup/monitor/template"
 	"html/template"
 )
 
@@ -48,18 +49,24 @@ func (s *SingleStat) GetContent(param param.Param) (template.HTML, error) {
 
 	data, err := s.DataSource.GetData(param)
 	if err != nil {
-		return "", err
+		return s.content("N/A"), nil
 	}
 
 	singleStatData := dashboard.SingleStatDataFromChartData(data)
 
-	components := template2.Get(config.Get().Theme)
+	s.DataFormat.CorrectUnit(float64(singleStatData))
 
-	content := `<div style="height:%dpx;line-height: %dpx;font-size: 2.5em;font-weight:bold;text-align:center;color: %s;">%s</div>`
+	return s.content(s.DataFormat.FormatData(float64(singleStatData))), nil
+}
 
-	return components.Box().
-		SetHeader(template.HTML("<b>" + s.Title + "</b>" + btn)).
-		SetBody(template.HTML(fmt.Sprintf(content, s.Height, s.Height, s.Color, formatData(float64(singleStatData), s.DataFormat)))).
+func (s *SingleStat) content(data string) template.HTML {
+	return template2.Get(config.Get().Theme).Box().
+		SetHeader(template.HTML("<b>" + s.Title + "</b>" + fmt.Sprintf(template3.Get(config.Get().Theme).GetSingleStatBtn(), s.Id))).
+		SetBody(template.HTML(fmt.Sprintf(template3.Get(config.Get().Theme).GetSingleStatContent(), s.Height, s.Height, s.Color, data))).
 		SetHeadColor("#f8f9fb").
-		GetContent(), nil
+		GetContent()
+}
+
+func (s *SingleStat) GetData(param param.Param) (template.JS, error) {
+	return "", nil
 }

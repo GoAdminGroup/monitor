@@ -12,6 +12,8 @@ import (
 	"github.com/GoAdminGroup/go-admin/template/types"
 	"github.com/GoAdminGroup/monitor/dashboard"
 	"github.com/GoAdminGroup/monitor/dashboard/param"
+	"net/http"
+	"strconv"
 )
 
 func ShowDashboard(ctx *context.Context) {
@@ -61,5 +63,29 @@ func ShowDashboard(ctx *context.Context) {
 }
 
 func Refresh(ctx *context.Context) {
+	dashboardName := ctx.Query("dashboard_name")
 
+	board := dashboard.Get(dashboardName)
+
+	id, _ := strconv.Atoi(ctx.Query("chart_id"))
+
+	chart := board.GetChart(id)
+
+	var p = param.NewFromFormValue(ctx.PostForm())
+
+	data, err := chart.GetData(dashboard.NewWithChartType(dashboard.Graph).Combine(p))
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"code": 500,
+			"msg":  "server error",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, map[string]interface{}{
+		"code": 0,
+		"msg":  "ok",
+		"data": data,
+	})
 }

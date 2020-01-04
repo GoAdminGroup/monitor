@@ -2,26 +2,27 @@ package prometheus
 
 import (
 	"context"
+	"errors"
 	"github.com/GoAdminGroup/monitor/dashboard"
 	"github.com/GoAdminGroup/monitor/dashboard/param"
 	apicenter "github.com/prometheus/client_golang/api"
 	prometheusapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
-	"strings"
 	"time"
 )
 
 type Prometheus struct {
-	api prometheusapi.API
+	api      prometheusapi.API
+	timezone *time.Location
 }
 
 const (
-	InitKey = "addr"
-	DSKey   = "prometheus"
+	InitKeyAddr     = "addr"
+	InitKeyTimeZone = "timezone"
+	DSKey           = "prometheus"
 
 	QueryStatementKey = "query_statement"
-	QueryTypeKey      = "query_type"
-	QueryTimeKey      = "query_time"
+	QueryStartTimeKey = "query_time_start"
 	QueryEndTimeKey   = "query_time_end"
 	QueryTimeStepKey  = "query_time_step"
 )
@@ -30,8 +31,8 @@ func init() {
 	dashboard.RegisterDS(DSKey, new(Prometheus))
 }
 
-func InitParam(addr string) param.Param {
-	return param.Param{InitKey: addr}
+func InitParam(addr string, timezone *time.Location) param.Param {
+	return param.Param{InitKeyAddr: addr, InitKeyTimeZone: timezone}
 }
 
 type QueryConfig struct {
@@ -70,7 +71,7 @@ func (q QueryConfig) AddTimeStep(step int64) QueryConfig {
 func QueryParam(cfg QueryConfig) param.Param {
 	return param.Param{
 		QueryStatementKey: cfg.Statements,
-		QueryTimeKey:      cfg.StartTime,
+		QueryStartTimeKey: cfg.StartTime,
 		QueryEndTimeKey:   cfg.EndTime,
 		QueryTimeStepKey:  cfg.TimeStep,
 	}
@@ -82,12 +83,13 @@ func (p *Prometheus) GetName() string {
 
 func (p *Prometheus) Init(param param.Param) error {
 	client, err := apicenter.NewClient(apicenter.Config{
-		Address: param.GetString(InitKey),
+		Address: param.GetString(InitKeyAddr),
 	})
 	if err != nil {
 		return err
 	}
 	p.api = prometheusapi.NewAPI(client)
+	p.timezone = param.Get(InitKeyTimeZone).(*time.Location)
 	return nil
 }
 
@@ -102,7 +104,7 @@ func (p *Prometheus) GetData(param param.Param) (dashboard.ChartData, error) {
 	)
 
 	if chartType.IsGraph() {
-		startTime := getTime(param.GetInt64(QueryTimeKey))
+		startTime := getTime(param.GetInt64(QueryStartTimeKey))
 		endTime := getTime(param.GetInt64(QueryEndTimeKey))
 		stepTime := time.Duration(param.GetInt64(QueryTimeStepKey)) * time.Second
 		for _, query := range querys {
@@ -114,15 +116,9 @@ func (p *Prometheus) GetData(param param.Param) (dashboard.ChartData, error) {
 			})
 			values = append(values, val)
 		}
-	} else {
-		val, _ := p.api.Query(ctx, querys[0], time.Now())
-		values = append(values, val)
-	}
-
-	var cstZone = time.FixedZone("UTC", 8*3600)
-
-	if chartType.IsGraph() {
 		data := dashboard.NewGraphData()
+
+		durType := getTimeDurationType(startTime, endTime)
 
 		for index, value := range values {
 			v, _ := value.(model.Matrix)
@@ -130,22 +126,88 @@ func (p *Prometheus) GetData(param param.Param) (dashboard.ChartData, error) {
 			for _, i := range v {
 				for _, j := range i.Values {
 					if index == 0 {
-						data.AddLabels(strings.Replace(j.Timestamp.Time().In(cstZone).Format("2006-01-02 15:04:05"), " ", `
-`, -1))
+						data.AddLabels(p.getTimeLabel(j.Timestamp.Time(), durType))
 					}
 					data.AddYAxisPoint(index, float64(j.Value))
 				}
 			}
-
 		}
 
 		return data, nil
-	} else {
-		value, _ := values[0].(model.Vector)
-		return dashboard.SingleStatData(value[0].Value), nil
 	}
+
+	val, _ := p.api.Query(ctx, querys[0], time.Now())
+	values = append(values, val)
+
+	value, _ := values[0].(model.Vector)
+
+	if len(value) == 0 {
+		return dashboard.SingleStatData(0), errors.New("no data")
+	}
+
+	return dashboard.SingleStatData(value[0].Value), nil
 }
 
 func getTime(v int64) time.Time {
 	return time.Unix(v, 0)
+}
+
+type DurType uint8
+
+const (
+	DurTypeMinute DurType = iota
+	DurTypeHour
+	DurTypeDay
+	DurTypeMonth
+	DurTypeYear
+)
+
+func getTimeDurationType(start, end time.Time) DurType {
+	yearStart := start.Year()
+	yearEnd := end.Year()
+
+	if yearStart != yearEnd {
+		return DurTypeYear
+	}
+
+	monethStart := start.Month()
+	monethEnd := end.Month()
+
+	if monethStart != monethEnd {
+		return DurTypeMonth
+	}
+
+	dayStart := start.Day()
+	dayEnd := end.Day()
+
+	if dayStart != dayEnd {
+		return DurTypeDay
+	}
+
+	hourStart := start.Hour()
+	hourEnd := end.Hour()
+
+	if hourStart != hourEnd {
+		return DurTypeHour
+	}
+
+	return DurTypeMinute
+}
+
+func (p *Prometheus) getTimeLabel(t time.Time, durType DurType) string {
+	switch durType {
+	case DurTypeMinute:
+		return t.In(p.timezone).Format("04:05")
+	case DurTypeHour:
+		return t.In(p.timezone).Format("15:04")
+	case DurTypeDay:
+		return t.In(p.timezone).Format(`01/02
+15:04`)
+	case DurTypeMonth:
+		return t.In(p.timezone).Format(`01/02
+15:04`)
+	case DurTypeYear:
+		return t.In(p.timezone).Format("2006/01/02")
+	}
+	panic("wrong duration type")
 }

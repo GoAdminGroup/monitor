@@ -7,6 +7,7 @@ import (
 	template2 "github.com/GoAdminGroup/go-admin/template"
 	"github.com/GoAdminGroup/monitor/dashboard"
 	"github.com/GoAdminGroup/monitor/dashboard/param"
+	template3 "github.com/GoAdminGroup/monitor/template"
 	"github.com/go-echarts/go-echarts/charts"
 	"html/template"
 )
@@ -66,14 +67,28 @@ func (b *Graph) GetType() dashboard.ChartType {
 
 func (b *Graph) GetContent(param param.Param) (template.HTML, error) {
 
-	param = param.Combine(b.Param)
+	graphData, err := b.getData(param.Combine(b.Param))
 
-	data, err := b.DataSource.GetData(param)
 	if err != nil {
 		return "", err
 	}
 
-	graphData := dashboard.GraphDataFromChartData(data)
+	line := b.getLine(graphData)
+
+	return template2.Get(config.Get().Theme).Box().
+		SetHeader(template.HTML("<b>" + b.Title + "</b>" + fmt.Sprintf(template3.Get(config.Get().Theme).GetGraphBtn(), b.Id))).
+		SetBody(echarts.NewChart().SetContent(line).GetContent()).
+		SetHeadColor("#f8f9fb").
+		GetContent(), nil
+}
+
+func (b *Graph) getLine(graphData *dashboard.GraphData) *charts.Line {
+
+	if len(graphData.YAxisList) > 0 && len(graphData.YAxisList[0]) > 0 {
+		b.DataFormat.CorrectUnit(graphData.YAxisList[0][0])
+	} else {
+		b.DataFormat.CorrectUnit(0)
+	}
 
 	labels := b.XLabels
 	if len(labels) == 0 {
@@ -86,8 +101,17 @@ func (b *Graph) GetContent(param param.Param) (template.HTML, error) {
 		}
 	}
 
-	opts := charts.YAxisOpts{
-		AxisLabel: charts.LabelTextOpts{Formatter: "{value} " + b.DataFormat.Type.Flag()},
+	yopts := charts.YAxisOpts{
+		AxisLabel: charts.LabelTextOpts{Formatter: "{value} " + b.DataFormat.Flag()},
+		SplitLine: charts.SplitLineOpts{
+			Show: true,
+			LineStyle: charts.LineStyleOpts{
+				Type: "dashed",
+			},
+		},
+	}
+	xopts := charts.XAxisOpts{
+		//AxisLabel: charts.LabelTextOpts{Formatter: "{value} " + b.DataFormat.Type.Flag(b.DataFormat.Unit)},
 		SplitLine: charts.SplitLineOpts{
 			Show: true,
 			LineStyle: charts.LineStyleOpts{
@@ -98,32 +122,56 @@ func (b *Graph) GetContent(param param.Param) (template.HTML, error) {
 
 	if b.YMax == -1 || b.YMin == -1 {
 		if b.DataFormat.Type.IsPercent() {
-			opts.Max = 100
-			opts.Min = 0
+			yopts.Max = 100
+			yopts.Min = 0
 		}
 	} else {
-		opts.Max = b.YMax
-		opts.Min = b.YMin
+		yopts.Max = b.YMax
+		yopts.Min = b.YMin
 	}
 
 	line := charts.NewLine()
-	line.SetGlobalOptions(opts, charts.ToolboxOpts{Show: true}, charts.LegendOpts{Left: "1%", Top: "2%"})
+	line.SetGlobalOptions(yopts, xopts,
+		charts.ToolboxOpts{Show: true},
+		charts.LegendOpts{Left: "1%", Top: "2%"},
+		charts.TooltipOpts{Show: true, Trigger: "axis"}, //  Formatter: "{c} " + b.DataFormat.Flag()
+	)
+	line.SetSeriesOptions(
+		charts.LineOpts{Smooth: true},
+	)
 	line.AddXAxis(labels)
 
 	for i := 0; i < len(graphData.YAxisList); i++ {
-		line.AddYAxis(yLabels[i], formatDatas(graphData.YAxisList[i], b.DataFormat), charts.LabelTextOpts{Show: true})
+		if len(graphData.YAxisList[i]) > 0 {
+			line.AddYAxis(yLabels[i], b.DataFormat.FormatDatas(graphData.YAxisList[i]),
+				//charts.ColorOpts(color_scheme.DefaultScheme),
+			)
+		}
 	}
 
 	line.Width = "100%"
 	line.Height = fmt.Sprintf("%dpx", b.Height)
+	return line
+}
 
-	b.Id = line.ChartID
+func (b *Graph) getData(param param.Param) (*dashboard.GraphData, error) {
+	data, err := b.DataSource.GetData(param)
+	if err != nil {
+		return nil, err
+	}
 
-	components := template2.Get(config.Get().Theme)
+	return dashboard.GraphDataFromChartData(data), nil
+}
 
-	return components.Box().
-		SetHeader(template.HTML("<b>" + b.Title + "</b>" + btn)).
-		SetBody(echarts.NewChart().SetContent(line).GetContent()).
-		SetHeadColor("#f8f9fb").
-		GetContent(), nil
+func (b *Graph) GetData(param param.Param) (template.JS, error) {
+
+	graphData, err := b.getData(param.Combine(b.Param))
+
+	if err != nil {
+		return "", err
+	}
+
+	line := b.getLine(graphData)
+
+	return echarts.NewChart().SetContent(line).GetOptions(), nil
 }

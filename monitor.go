@@ -37,6 +37,7 @@ func (monitor *Monitor) InitPlugin(services service.List) {
 	config = c.Get()
 	Plug.app = InitRouter(config.Prefix(), services)
 	connection = db.GetConnection(services)
+	addToLanguagePkg()
 }
 
 func (monitor *Monitor) GetRequest() []context.Path {

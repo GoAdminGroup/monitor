@@ -16,7 +16,7 @@ func InitRouter(prefix string, srv service.List) *context.App {
 	route.GET("/dashboard/:dashboard_name", auth.Middleware(db.GetConnection(srv)), ShowDashboard)
 
 	// refresh gauge
-	route.POST("/refresh/:gauge_id/gauge/dashboard/:dashboard_name", auth.Middleware(db.GetConnection(srv)), Refresh)
+	route.POST("/refresh/:chart_id/chart/dashboard/:dashboard_name", auth.Middleware(db.GetConnection(srv)), Refresh)
 
 	return app
 }

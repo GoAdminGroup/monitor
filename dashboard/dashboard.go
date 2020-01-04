@@ -2,18 +2,22 @@ package dashboard
 
 import (
 	"fmt"
+	"html/template"
+	"strconv"
+
 	"github.com/GoAdminGroup/go-admin/modules/config"
 	template2 "github.com/GoAdminGroup/go-admin/template"
 	"github.com/GoAdminGroup/monitor/dashboard/param"
-	"html/template"
-	"strconv"
+	template3 "github.com/GoAdminGroup/monitor/template"
 )
 
 type Dashboard interface {
-	GetLayout() Layout
 	GetContent(params []param.Param) (template.HTML, error)
 	GetCharts() ChartList
 	GetTitle() string
+	SetKey(key string) Dashboard
+	GetKey() string
+	GetChart(id int) Chart
 	GetDescription() string
 }
 
@@ -29,7 +33,7 @@ func Add(name string, board Dashboard) {
 	if _, duplicate := list[name]; duplicate {
 		panic("has been registered")
 	}
-	list[name] = board
+	list[name] = board.SetKey(name)
 }
 
 func Get(name string) Dashboard {
@@ -45,14 +49,24 @@ type DefaultDashboard struct {
 	DS          DSList
 	Title       string
 	Description string
+	Key         string
 }
 
 func NewDefaultDashboard(title, desc string) *DefaultDashboard {
 	return &DefaultDashboard{Title: title, Description: desc}
 }
 
-func (d *DefaultDashboard) GetLayout() Layout {
-	return d.Layout
+func (d *DefaultDashboard) SetKey(key string) Dashboard {
+	d.Key = key
+	return d
+}
+
+func (d *DefaultDashboard) GetKey() string {
+	return d.Key
+}
+
+func (d *DefaultDashboard) GetChart(id int) Chart {
+	return d.Charts[id]
 }
 
 func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, error) {
@@ -63,7 +77,6 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 		content    template.HTML
 		row        template.HTML
 		components = template2.Get(config.Get().Theme)
-		chartIds   = make([]string, 0)
 		col        template.HTML
 	)
 
@@ -73,10 +86,6 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 		if len(params) > 0 {
 			p = params[i]
 		}
-
-		fmt.Println("ga.GetSize()", ga.GetSize())
-		fmt.Println("width", width)
-		fmt.Println("height", height)
 
 		if ga.GetSize()[1] == 12 {
 
@@ -106,7 +115,6 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 				row += components.Col().
 					SetSize(map[string]string{"md": strconv.Itoa(ga.GetSize()[0])}).
 					SetContent(c).GetContent()
-				chartIds = append(chartIds, ga.GetId())
 			}
 		} else {
 
@@ -124,7 +132,6 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 			c, err := ga.GetContent(SetChartType(p, ga.GetType()))
 			if err == nil {
 				col += components.Row().SetContent(c).GetContent()
-				chartIds = append(chartIds, ga.GetId())
 			}
 
 			if i == len(d.Charts)-1 {
@@ -137,38 +144,8 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 		}
 	}
 
-	return content + sideBarControlJS, nil
+	return content + template.HTML(fmt.Sprintf(template3.Get(config.Get().Theme).GetDashboardStyle(), config.Get().Prefix(), d.Key)), nil
 }
-
-const sideBarControlJS = `<script>
-	$("body").addClass("sidebar-collapse")
-	$(".zoom-in-btn").on('click', function (event) {
-		$(this).parent().parent().parent().addClass("zoom-in-container")
-		let container = $(this).parent().next().children().children()
-		container.attr("data-raw-height", container.height())
-		container.css("height", "680px");
-		let chartID = "myChart_" + container.attr("id")
-		eval(chartID + ".resize()")
-		$(this).hide()
-		$(this).next().show()
-	});
-	$(".zoom-out-btn").on('click', function (event) {
-		$(this).parent().parent().parent().removeClass("zoom-in-container")
-		let container = $(this).parent().next().children().children() 
-		container.css("height", container.attr("data-raw-height"));
-		let chartID = "myChart_" + container.attr("id")
-		eval(chartID + ".resize()")
-		$(this).hide()
-		$(this).prev().show()
-	});
-</script>
-<style>
-	.echarts-container{margin-top:0px;}
-	.zoom-in-container{position:absolute;width:93.5%;height:82%;z-index:999;}
-	.row {margin-right: 0;margin-left: 0;}
-	.col-lg-1, .col-lg-10, .col-lg-11, .col-lg-12, .col-lg-2, .col-lg-3, .col-lg-4, .col-lg-5, .col-lg-6, .col-lg-7, .col-lg-8, .col-lg-9, .col-md-1, .col-md-10, .col-md-11, .col-md-12, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6, .col-md-7, .col-md-8, .col-md-9, .col-sm-1, .col-sm-10, .col-sm-11, .col-sm-12, .col-sm-2, .col-sm-3, .col-sm-4, .col-sm-5, .col-sm-6, .col-sm-7, .col-sm-8, .col-sm-9, .col-xs-1, .col-xs-10, .col-xs-11, .col-xs-12, .col-xs-2, .col-xs-3, .col-xs-4, .col-xs-5, .col-xs-6, .col-xs-7, .col-xs-8, .col-xs-9{padding-right: 6px;padding-left: 6px;}
-	.box {margin-bottom: 6px;}
-</style>`
 
 func (d *DefaultDashboard) GetTitle() string {
 	return d.Title
@@ -183,10 +160,12 @@ func (d *DefaultDashboard) GetCharts() ChartList {
 }
 
 func (d *DefaultDashboard) AddChart(g Chart) {
+	g.SetId(len(d.Charts))
 	d.Charts = d.Charts.Add(g)
 }
 
 func (d *DefaultDashboard) AddChartWithDSKey(dskey string, g Chart) {
+	g.SetId(len(d.Charts))
 	d.Charts = d.Charts.Add(g.SetDataSource(d.DS.FindByName(dskey)))
 }
 
@@ -284,10 +263,12 @@ type Chart interface {
 	GetDataSource() DataSource
 	GetType() ChartType
 	GetSize() []int
-	GetId() string
+	GetId() int
+	SetId(id int)
 	GetHeight() int
 	SetSize([]int)
 	SetHeight(int)
+	GetData(param param.Param) (template.JS, error)
 	GetContent(param param.Param) (template.HTML, error)
 }
 
