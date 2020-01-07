@@ -109,7 +109,7 @@ func (p *Prometheus) GetData(param param.Param) (dashboard.ChartData, error) {
 		stepTime := time.Duration(param.GetInt64(QueryTimeStepKey)) * time.Second
 		for _, query := range querys {
 			// TODO: handle error
-			val, _ := p.api.QueryRange(ctx, query, prometheusapi.Range{
+			val, _, _ := p.api.QueryRange(ctx, query, prometheusapi.Range{
 				Start: startTime,
 				End:   endTime,
 				Step:  stepTime,
@@ -136,7 +136,7 @@ func (p *Prometheus) GetData(param param.Param) (dashboard.ChartData, error) {
 		return data, nil
 	}
 
-	val, _ := p.api.Query(ctx, querys[0], time.Now())
+	val, _, _ := p.api.Query(ctx, querys[0], time.Now())
 	values = append(values, val)
 
 	value, _ := values[0].(model.Vector)
