@@ -27,7 +27,9 @@ func ShowDashboard(ctx *context.Context) {
 
 	board := dashboard.Get(dashboardName)
 
-	content, err := board.GetContent([]param.Param{})
+	content, err := board.GetContent([]param.Param{
+		{"interval": ctx.Query("interval")},
+	})
 
 	if err != nil {
 		logger.Error("SetPageContent", err)
@@ -55,7 +57,7 @@ func ShowDashboard(ctx *context.Context) {
 	buf := new(bytes.Buffer)
 	err = tmpl.ExecuteTemplate(buf, tmplName, types.NewPage(user,
 		*(menu.GetGlobalMenu(user, connection).SetActiveClass(config.URLRemovePrefix(ctx.Path()))),
-		chart, config, template.GetComponentAssetListsHTML()))
+		chart.GetContent(config.IsProductionEnvironment()), config, template.GetComponentAssetListsHTML()))
 	if err != nil {
 		logger.Error("ShowDashboard", err)
 	}

@@ -83,8 +83,8 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 	for i, ga := range d.Charts {
 
 		p := make(param.Param, 0)
-		if len(params) > 0 {
-			p = params[i]
+		if len(params) > 1 {
+			p = params[i+1]
 		}
 
 		if ga.GetSize()[1] == 12 {
@@ -144,7 +144,10 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 		}
 	}
 
-	return content + template.HTML(fmt.Sprintf(template3.Get(config.Get().Theme).GetDashboardStyle(), config.Get().Prefix(), d.Key)), nil
+	tmpl := template3.Get(config.Get().Theme)
+
+	return tmpl.GetToolBar(params[0]["interval"].(string)) + content +
+		template.HTML(fmt.Sprintf(template3.Get(config.Get().Theme).GetDashboardStyle(), config.Get().Prefix(), d.Key)), nil
 }
 
 func (d *DefaultDashboard) GetTitle() string {

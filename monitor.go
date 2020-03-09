@@ -5,7 +5,6 @@ import (
 	c "github.com/GoAdminGroup/go-admin/modules/config"
 	"github.com/GoAdminGroup/go-admin/modules/db"
 	"github.com/GoAdminGroup/go-admin/modules/service"
-	"github.com/GoAdminGroup/go-admin/plugins"
 	"github.com/GoAdminGroup/monitor/dashboard"
 )
 
@@ -40,10 +39,6 @@ func (monitor *Monitor) InitPlugin(services service.List) {
 	addToLanguagePkg()
 }
 
-func (monitor *Monitor) GetRequest() []context.Path {
-	return monitor.app.Requests
-}
-
-func (monitor *Monitor) GetHandler(url, method string) context.Handlers {
-	return plugins.GetHandler(url, method, monitor.app)
+func (monitor *Monitor) GetHandler() context.HandlerMap {
+	return monitor.app.Handlers
 }

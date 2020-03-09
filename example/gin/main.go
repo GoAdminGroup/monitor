@@ -86,11 +86,7 @@ func main() {
 
 	// customize your pages
 
-	r.GET("/admin", func(ctx *gin.Context) {
-		eng.Content(ctx, func(ctx interface{}) (types.Panel, error) {
-			return datamodel.GetContent()
-		})
-	})
+	eng.HTML("GET", "/admin", datamodel.GetContent)
 
 	_ = r.Run(":9033")
 }

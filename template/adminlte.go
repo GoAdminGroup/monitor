@@ -1,7 +1,8 @@
 package template
 
-type Adminlte struct {
-}
+import "html/template"
+
+type Adminlte struct{}
 
 func (*Adminlte) GetDashboardStyle() string {
 	return `<script>
@@ -51,6 +52,74 @@ func (*Adminlte) GetDashboardStyle() string {
 	.box {margin-bottom: 6px;border: 1px solid #d2d6de;}
 	.box:hover {border: 1px solid #5298b3;}
 </style>`
+}
+
+func (*Adminlte) GetToolBar(interval string) template.HTML {
+	if interval == "" || (interval != "15" && interval != "30" && interval != "60" && interval != "120") {
+		interval = "60"
+	}
+
+	intervalTimes := map[string]string{
+		"15":  "15000",
+		"30":  "30000",
+		"60":  "60000",
+		"120": "120000",
+	}
+
+	indexs := map[string]int{
+		"15":  3,
+		"30":  2,
+		"60":  1,
+		"120": 0,
+	}
+
+	choosedClass := []string{"", "", "", ""}
+	choosedClass[indexs[interval]] = " choosed-btn"
+
+	chooseBtn := template.HTML(`
+<style>
+.choose-time-btn {
+	padding: 4px 8px 4px 8px;
+	background-color: #ffffff;
+	color: #7d7c7c;
+	margin-right: 10px;
+	font-size: 13px;
+	cursor: pointer;
+	width: 50px;
+	text-align: center;
+	float: right;
+}
+.choose-time-btn:hover {
+	background-color: #d4d2d2;
+}
+.choose-time-btn.choosed-btn {
+	background-color: #546478;
+	color: #fff;
+}
+.breadcrumb {
+	display: none;
+}
+</style>
+<div style="position: absolute;right: 18px;top: 67px;">
+	<div class="choose-time-btn` + choosedClass[0] + `" data="120">2分钟</div>
+	<div class="choose-time-btn` + choosedClass[1] + `" data="60">1分钟</div>
+	<div class="choose-time-btn` + choosedClass[2] + `" data="30">30秒</div>
+	<div class="choose-time-btn` + choosedClass[3] + `" data="15">15秒</div>
+</div>
+<script>
+$(".choose-time-btn").on("click", function (e) {
+	if (!$(this).hasClass("choosed-btn")) {
+		$(".choose-time-btn.choosed-btn").removeClass("choosed-btn");
+		$(this).addClass("choosed-btn");
+		location.href = "?interval=" + $(this).attr("data");
+	}
+});
+window.setTimeout(function(){
+	$.pjax.reload('#pjax-container');
+}, ` + intervalTimes[interval] + `);
+</script>
+`)
+	return chooseBtn
 }
 
 func (*Adminlte) GetGraphBtn() string {
