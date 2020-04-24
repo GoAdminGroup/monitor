@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/GoAdminGroup/go-admin/context"
 	"github.com/GoAdminGroup/go-admin/modules/auth"
+	"github.com/GoAdminGroup/go-admin/modules/config"
 	"github.com/GoAdminGroup/go-admin/modules/language"
 	"github.com/GoAdminGroup/go-admin/modules/logger"
 	"github.com/GoAdminGroup/go-admin/modules/menu"
@@ -16,7 +17,7 @@ import (
 	"strconv"
 )
 
-func ShowDashboard(ctx *context.Context) {
+func (m *Monitor) ShowDashboard(ctx *context.Context) {
 
 	var (
 		user  = auth.Auth(ctx)
@@ -33,14 +34,14 @@ func ShowDashboard(ctx *context.Context) {
 
 	if err != nil {
 		logger.Error("SetPageContent", err)
-		alert := template.Get(config.Theme).
+		alert := template.Get(config.GetTheme()).
 			Alert().
 			SetTitle(template.HTML(`<i class="icon fa fa-warning"></i> ` + language.Get("error") + `!`)).
 			SetTheme("warning").SetContent(template.HTML(err.Error())).GetContent()
 		chart = types.Panel{
 			Content:     alert,
-			Description: language.Get("error"),
-			Title:       language.Get("error"),
+			Description: language.GetFromHtml("error"),
+			Title:       language.GetFromHtml("error"),
 		}
 	} else {
 		chart = types.Panel{
@@ -50,21 +51,24 @@ func ShowDashboard(ctx *context.Context) {
 		}
 	}
 
-	tmpl, tmplName := template.Get(config.Theme).GetTemplate(ctx.Headers(constant.PjaxHeader) == "true")
+	tmpl, tmplName := template.Get(config.GetTheme()).GetTemplate(ctx.Headers(constant.PjaxHeader) == "true")
 
 	ctx.AddHeader("Content-Type", "text/html; charset=utf-8")
 
 	buf := new(bytes.Buffer)
-	err = tmpl.ExecuteTemplate(buf, tmplName, types.NewPage(user,
-		*(menu.GetGlobalMenu(user, connection).SetActiveClass(config.URLRemovePrefix(ctx.Path()))),
-		chart.GetContent(config.IsProductionEnvironment()), config, template.GetComponentAssetListsHTML()))
+	err = tmpl.ExecuteTemplate(buf, tmplName, types.NewPage(types.NewPageParam{
+		User:   user,
+		Menu:   menu.GetGlobalMenu(user, m.Conn).SetActiveClass(config.URLRemovePrefix(ctx.Path())),
+		Panel:  chart.GetContent(config.IsProductionEnvironment()),
+		Assets: template.GetComponentAssetListsHTML(),
+	}))
 	if err != nil {
 		logger.Error("ShowDashboard", err)
 	}
 	ctx.WriteString(buf.String())
 }
 
-func Refresh(ctx *context.Context) {
+func (m *Monitor) Refresh(ctx *context.Context) {
 	dashboardName := ctx.Query("dashboard_name")
 
 	board := dashboard.Get(dashboardName)

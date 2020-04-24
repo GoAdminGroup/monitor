@@ -14,11 +14,11 @@ import (
 type Dashboard interface {
 	GetContent(params []param.Param) (template.HTML, error)
 	GetCharts() ChartList
-	GetTitle() string
 	SetKey(key string) Dashboard
 	GetKey() string
 	GetChart(id int) Chart
-	GetDescription() string
+	GetTitle() template.HTML
+	GetDescription() template.HTML
 }
 
 type Layout uint8
@@ -47,12 +47,12 @@ type DefaultDashboard struct {
 	Layout      Layout
 	Charts      ChartList
 	DS          DSList
-	Title       string
-	Description string
+	Title       template.HTML
+	Description template.HTML
 	Key         string
 }
 
-func NewDefaultDashboard(title, desc string) *DefaultDashboard {
+func NewDefaultDashboard(title, desc template.HTML) *DefaultDashboard {
 	return &DefaultDashboard{Title: title, Description: desc}
 }
 
@@ -150,11 +150,11 @@ func (d *DefaultDashboard) GetContent(params []param.Param) (template.HTML, erro
 		template.HTML(fmt.Sprintf(template3.Get(config.Get().Theme).GetDashboardStyle(), config.Get().Prefix(), d.Key)), nil
 }
 
-func (d *DefaultDashboard) GetTitle() string {
+func (d *DefaultDashboard) GetTitle() template.HTML {
 	return d.Title
 }
 
-func (d *DefaultDashboard) GetDescription() string {
+func (d *DefaultDashboard) GetDescription() template.HTML {
 	return d.Description
 }
 
